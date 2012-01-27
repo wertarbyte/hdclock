@@ -20,10 +20,18 @@
 #define P_OFFSET (1*(PMAX+1)/8)
 #define P_CENTER (3*(PMAX/8))
 
+uint8_t poti_value = 0;
+
+/* will return the old vaue of poti_value
+ * and start a new conversion
+ */
 static uint8_t read_poti(void) {
-	ADCSRA |= 1<<ADSC;
-	while (ADCSRA & 1<<ADSC) {}
-	return ADCH;
+	if (! (ADCSRA & 1<<ADSC)) {
+		poti_value = ADCH;
+		// start new conversion
+		ADCSRA |= 1<<ADSC;
+	}
+	return poti_value;
 }
 
 static uint8_t display_magic_eye(uint8_t pos) {
@@ -57,7 +65,7 @@ static uint8_t display_progress(uint8_t pos) {
 }
 
 int main(void) {
-	CPU_PRESCALE(CPU_16MHz);
+	CPU_PRESCALE(CPU_8MHz);
 	DDRD |= (1<<PD6 | 1<<PD0);
 
 	ADMUX = (0<<REFS1 | 1<<REFS0 | 1<<ADLAR);
@@ -87,6 +95,8 @@ int main(void) {
 		} else {
 			PORTD |= 1<<PD6;
 		}
+
+		read_poti();
 
 		if (!duration) continue;
 		if (!display) continue;
