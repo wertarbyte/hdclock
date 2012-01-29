@@ -1,4 +1,4 @@
-MCU = atmega32u4
+MCU = attiny85
 F_CPU = 8000000
 TARGET = hdclock
 
