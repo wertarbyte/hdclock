@@ -26,9 +26,24 @@ static uint8_t display_magic_eye(uint8_t pos) {
 }
 
 static uint8_t display_radar(uint8_t pos) {
-	uint8_t width = 10;
-	uint8_t start = ANIMATION_PHASE;
-	uint8_t end = ((uint16_t)start+width)%PMOD;
+	static int8_t dir = 1;
+	uint8_t width = 40;
+	uint8_t start = 0;
+	uint8_t end = 0;
+	if (dir == 1) {
+		start = ANIMATION_PHASE;
+		if ((start+width) > 128+64) {
+			ANIMATION_PHASE = 1;
+			dir = -1;
+		}
+	} else if (dir == -1) {
+		start = (128+64)-ANIMATION_PHASE-width;
+		if (start > 128+64) {
+			ANIMATION_PHASE = 1;
+			dir = 1;
+		}
+	}
+	end = ((uint16_t)start+width)%PMOD;
 	if (pos > start && pos < end) {
 		return 1;
 	} else {
