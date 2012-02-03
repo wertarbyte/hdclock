@@ -11,7 +11,6 @@
 
 typedef uint8_t(*display_t)(uint8_t);
 
-static volatile uint8_t OVERFLOW = 0;
 static volatile uint8_t ANIMATION_PHASE = 0;
 
 static uint8_t display_magic_eye(uint8_t pos) {
@@ -73,14 +72,12 @@ static display_t display[N_DISPLAYS] = {
 
 
 static uint16_t getCounter(void) {
-	uint16_t result = (((uint16_t)OVERFLOW)<<8) | TCNT0;
-	return result;
+	return TCNT1;
 }
 
 static uint16_t resetCounter(void) {
 	uint16_t old = getCounter();
-	OVERFLOW = 0;
-	TCNT0 = 0;
+	TCNT1 = 0;
 	return old;
 }
 
@@ -88,16 +85,22 @@ static uint16_t resetCounter(void) {
 static volatile uint16_t duration = 0;
 
 int main(void) {
-	DDRB |= (1<<PB3);
+	DDRB = (1<<PB3);
 
 	// turn on pull up
-	PORTB |= (1<<PB4);
+	PORTB = (1<<PB4);
 
-	TCCR0B |= (1<<CS02 | 0<<CS01 | 0<<CS00);
-	TCCR1 |= (1<<CS13 | 1<<CS12 | 0<<CS11 | 0<<CS10);
-	TIMSK |= (1<<TOIE0 | 1<<TOIE1);
-	GIMSK |= (1<<PCIE);
-	PCMSK |= (1<<PCINT4);
+	TCCR0A = (1<<WGM01);
+	TCCR0B = (1<<CS02 | 1<<CS00);
+	OCR0A = 255;
+
+	TCCR1A = (1<<WGM12);
+	TCCR1B = (1<<CS12 | 0<<CS11 | 0<<CS10);
+
+	TIMSK = (1<<OCIE0A);
+
+	GIMSK = (1<<PCIE);
+	PCMSK = (1<<PCINT4);
 
 	uint8_t pos = 0;
 
@@ -126,15 +129,11 @@ int main(void) {
 	}
 }
 
-ISR(TIM0_OVF_vect) {
-	OVERFLOW++;
-}
-
-ISR(TIM1_OVF_vect) {
+ISR(TIMER0_COMPA_vect) {
 	ANIMATION_PHASE++;
 }
 
-ISR(PCINT0_vect) {
+ISR(PCINT_vect) {
 	uint16_t t = getCounter();
 	/* check for rising edge and debounce */
 	if (PINB & 1<<PB4 && t > 64) {
