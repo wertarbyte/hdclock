@@ -99,7 +99,7 @@ static uint8_t display_clock(uint8_t pos) {
 
 	return ( (clock.h < 12) ? pos < h_hand : pos > h_hand )
 	       ^ (abs(m_hand-pos) < 4)
-	       ^ (abs(s_hand-pos) < 4)
+	       ^ (abs(s_hand-pos) < 2)
 	;
 }
 
