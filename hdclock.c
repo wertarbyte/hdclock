@@ -37,6 +37,18 @@ static void get_time(void) {
 	        ((buffer_i2c[3] & 0x0F) + (buffer_i2c[3] >> 4)*10)*60*60;
 }
 
+static void set_time(int16_t ts) {
+	uint8_t seconds = (ts % 60);
+	uint8_t minutes = (ts % (60*60))/60;
+	uint8_t hours = (ts % (uint16_t)(60*60*60))/(uint16_t)(60*60) % 24;
+	buffer_i2c[0] = PCF8583_WRITE_ADDRESS;
+	buffer_i2c[1] = 0x02; // start of time data
+	buffer_i2c[2] = ( ((seconds/10)<<4) | (seconds%10) );
+	buffer_i2c[3] = ( ((minutes/10)<<4) | (minutes%10) );
+	buffer_i2c[4] = ( ((hours/10)<<4) | (hours%10) );
+	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 5);
+}
+
 typedef uint8_t(*display_t)(uint8_t);
 
 static volatile uint8_t ANIMATION_PHASE = 0;
