@@ -177,7 +177,18 @@ static uint16_t resetCounter(void) {
 }
 
 /* memorize the duration of one rotation in clock ticks */
-static volatile uint16_t duration = 0;
+#define N_DURATIONS 5
+static volatile uint16_t duration[N_DURATIONS] = {0};
+static volatile uint16_t avg_duration = 0;
+
+static uint16_t get_duration(void) {
+	uint32_t s = 0;
+	uint8_t i = 0;
+	for (i=0; i<N_DURATIONS; i++) {
+		s += duration[i];
+	}
+	return s/N_DURATIONS;
+}
 
 int main(void) {
 	DDRB = (1<<PB3);
@@ -217,7 +228,9 @@ int main(void) {
 
 	sei();
 
+	int16_t duration = 0;
 	while (1) {
+		duration = avg_duration;
 		if (!duration) continue;
 
 		// where are we exactly?
@@ -249,8 +262,12 @@ ISR(TIMER0_COMPA_vect) {
 }
 
 ISR(PCINT_vect) {
+	static uint8_t d_i = 0;
 	/* check for rising edge and debounce */
 	if (PINB & 1<<PB4) {
-		duration = resetCounter();
+		duration[d_i] = resetCounter();
+		d_i++;
+		d_i %= N_DURATIONS;
+		avg_duration = get_duration();
 	}
 }
