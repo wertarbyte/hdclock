@@ -5,7 +5,7 @@
 #include <util/delay.h>
 
 
-#define PRECALC 1
+#define DO_PRECALC 0
 
 #define TWI_FAST_MODE 1
 
@@ -13,6 +13,8 @@
 
 #define PMAX UINT8_MAX
 #define PMOD (PMAX+1)
+
+#define P_VISIBLE ((PMOD*3)/4)
 
 #define P_OFFSET (1*(PMAX+1)/8)
 #define P_CENTER (3*(PMAX/8))
@@ -32,7 +34,7 @@ static struct {
 	uint8_t h;
 	uint8_t m;
 	uint8_t s;
-	uint8_t ms;
+	uint8_t cs;
 } clock = {0,0,0};
 
 /* get a unix style timestamp value from the clock */
@@ -59,7 +61,7 @@ static void update_clock(void) {
 	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 2);
 	buffer_i2c[0] = PCF8583_READ_ADDRESS;
 	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 5);
-	clock.ms = (buffer_i2c[1] & 0x0F) + (buffer_i2c[1] >> 4)*10;
+	clock.cs = (buffer_i2c[1] & 0x0F) + (buffer_i2c[1] >> 4)*10;
 	clock.s = (buffer_i2c[2] & 0x0F) + (buffer_i2c[2] >> 4)*10;
 	clock.m = ((buffer_i2c[3] & 0x0F) + (buffer_i2c[3] >> 4)*10);
 	clock.h = ((buffer_i2c[4] & 0x0F) + (buffer_i2c[4] >> 4)*10);
@@ -70,7 +72,7 @@ static void set_timestamp(int32_t ts) {
 	uint8_t minutes = (ts % (60*60))/60;
 	uint8_t hours = (ts / (60*60));
 	buffer_i2c[0] = PCF8583_WRITE_ADDRESS;
-	buffer_i2c[1] = 0x02; // 1tart of time data
+	buffer_i2c[1] = 0x02; // start of time data
 	buffer_i2c[2] = ( ((seconds/10)<<4) | (seconds%10) );
 	buffer_i2c[3] = ( ((minutes/10)<<4) | (minutes%10) );
 	buffer_i2c[4] = ( ((hours/10)<<4) | (hours%10) );
@@ -87,26 +89,27 @@ static volatile uint8_t ANIMATION_PHASE = 0;
 
 static uint8_t display_clock(uint8_t pos) {
 	static int32_t ts = 0;
-	static uint8_t ms = 0;
+	static uint8_t cs = 0;
 	int32_t time = get_timestamp();
 	/* scale everything to the visible number of units */
-	static uint8_t ms_hand = 0;
+	static uint8_t hs_hand = 0;
+	static uint8_t cs_hand = 0;
 	static uint8_t s_hand = 0;
 	static uint8_t m_hand = 0;
 	static uint8_t h_hand = 0;
-	if (0 || ts != time || ms != clock.ms) {
-		ms_hand = (((int16_t)(3*PMOD/4)*clock.ms) / 100);
-		s_hand = (((int16_t)(3*PMOD/4)*clock.s) / 60);
-		m_hand = (((int16_t)(3*PMOD/4)*clock.m) / 60);
-		h_hand = (((int16_t)(3*PMOD/4)*(clock.h%12)) / 12);
+	if (0 || ts != time || cs != clock.cs) {
+		cs_hand = (((int16_t)(P_VISIBLE)*clock.cs) / 100);
+		s_hand = (((int16_t)(P_VISIBLE)*clock.s) / 60);
+		m_hand = (((int16_t)(P_VISIBLE)*clock.m) / 60);
+		h_hand = (((int16_t)(P_VISIBLE)*(clock.h%12)) / 12);
 		ts = time;
-		ms = clock.ms;
+		cs = clock.cs;
 	}
 
 	return ( (clock.h < 12) ? pos < h_hand : pos > h_hand )
 	       ^ (abs(m_hand-pos) < 4)
 	       ^ (abs(s_hand-pos) < 2)
-	       ^ (abs(ms_hand-pos) < 1)
+	       ^ (abs(cs_hand-pos) < 1)
 	;
 }
 
@@ -264,7 +267,7 @@ int main(void) {
 		// where are we exactly?
 		pos = PMOD-( ((((((uint32_t)getCounter())<<16) / duration)*PMAX)>>16)+P_OFFSET ) % (PMOD);
 		// are we inside the covered section?
-		if (pos > 3*(PMOD/4)) {
+		if (pos >= P_VISIBLE) {
 			PORTB |= 1<<PB3;
 			if (!fetched_time) {
 				fetched_time = 1;
