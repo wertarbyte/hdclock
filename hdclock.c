@@ -242,7 +242,6 @@ ISR(TIMER0_COMPA_vect) {
 }
 
 ISR(PCINT_vect) {
-	uint16_t t = getCounter();
 	/* check for rising edge and debounce */
 	if (PINB & 1<<PB4) {
 		duration = resetCounter();
