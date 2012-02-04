@@ -133,6 +133,10 @@ static uint8_t display_half(uint8_t pos) {
 	return pos < PMAX/2;
 }
 
+static uint8_t display_every_other(uint8_t pos) {
+	return pos%2;
+}
+
 static uint8_t image[(PMOD+7)/8] = { 0xFF };
 
 static uint8_t display_precalc(uint8_t pos) {
@@ -151,7 +155,7 @@ static void precalc_image(display_t d) {
 	}
 }
 
-#define N_DISPLAYS 6
+#define N_DISPLAYS 7
 static display_t display[N_DISPLAYS] = {
 	&display_progress,
 	&display_radar,
@@ -159,6 +163,7 @@ static display_t display[N_DISPLAYS] = {
 	&display_half,
 	&display_clock,
 	&display_precalc,
+	&display_every_other,
 };
 
 static uint16_t getCounter(void) {
