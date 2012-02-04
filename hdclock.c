@@ -23,7 +23,16 @@
 static uint8_t buffer_i2c[5] = {0};
 
 /* unix style timestamp of the current hour, minute and second */
-static int16_t epoch = 0;
+static int32_t epoch = 0;
+
+static void blink(uint8_t n) {
+	while (n--) {
+		PORTD |= 1<<PD5;
+		_delay_ms(200);
+		PORTD &= ~(1<<PD5);
+		_delay_ms(200);
+	}
+}
 
 static void get_time(void) {
 	buffer_i2c[0] = PCF8583_WRITE_ADDRESS;
@@ -32,21 +41,25 @@ static void get_time(void) {
 	buffer_i2c[0] = PCF8583_READ_ADDRESS;
 	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 4);
 	/* calculate Unix style timestamp (but only time, not date) */
-	epoch = (buffer_i2c[1] & 0x0F) + (buffer_i2c[1] >> 4)*10 +
-	        ((buffer_i2c[2] & 0x0F) + (buffer_i2c[2] >> 4)*10)*60 +
-	        ((buffer_i2c[3] & 0x0F) + (buffer_i2c[3] >> 4)*10)*60*60;
+	epoch = (int32_t)(buffer_i2c[1] & 0x0F) + (buffer_i2c[1] >> 4)*10 +
+	        (int32_t)((buffer_i2c[2] & 0x0F) + (buffer_i2c[2] >> 4)*10)*60 +
+	        (int32_t)(((buffer_i2c[3] & 0x0F) + (buffer_i2c[3] >> 4)*10))*60*60;
 }
 
-static void set_time(int16_t ts) {
+static void set_time(int32_t ts) {
 	uint8_t seconds = (ts % 60);
 	uint8_t minutes = (ts % (60*60))/60;
-	uint8_t hours = (ts % (uint16_t)(60*60*60))/(uint16_t)(60*60) % 24;
+	uint8_t hours = (ts / (60*60));
 	buffer_i2c[0] = PCF8583_WRITE_ADDRESS;
 	buffer_i2c[1] = 0x02; // start of time data
 	buffer_i2c[2] = ( ((seconds/10)<<4) | (seconds%10) );
 	buffer_i2c[3] = ( ((minutes/10)<<4) | (minutes%10) );
 	buffer_i2c[4] = ( ((hours/10)<<4) | (hours%10) );
 	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 5);
+}
+
+static void set_clock(int8_t h, int8_t m, int8_t s) {
+	set_time( (int32_t)h*60*60 + (int32_t)m*60 + s );
 }
 
 typedef uint8_t(*display_t)(uint8_t);
@@ -56,7 +69,7 @@ static volatile uint8_t ANIMATION_PHASE = 0;
 static uint8_t display_clock(uint8_t pos) {
 	uint8_t seconds = (epoch % 60);
 	uint8_t minutes = (epoch % (60*60))/60;
-	uint8_t hours = (epoch % (uint16_t)(60*60*60))/(uint16_t)(60*60) % 24;
+	uint8_t hours = (epoch/(60*60)) % 24;
 	/* scale everything to 192 units */
 	uint8_t sec_hand = (((uint16_t)(3*PMOD/4)*seconds) / 60);
 	uint8_t min_hand = (((uint16_t)(3*PMOD/4)*minutes) / 60);
@@ -194,6 +207,7 @@ int main(void) {
 	PORTB &= ~(1<<PB3);
 	_delay_ms(500);
 	PORTB |= (1<<PB3);
+
 	sei();
 
 	while (1) {
