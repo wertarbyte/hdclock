@@ -71,13 +71,13 @@ static uint8_t display_clock(uint8_t pos) {
 	uint8_t minutes = (epoch % (60*60))/60;
 	uint8_t hours = (epoch/(60*60)) % 24;
 	/* scale everything to 192 units */
-	uint8_t sec_hand = (((uint16_t)(3*PMOD/4)*seconds) / 60);
-	uint8_t min_hand = (((uint16_t)(3*PMOD/4)*minutes) / 60);
-	uint8_t hr_hand = (((uint16_t)(3*PMOD/4)*(hours%12)) / 12);
+	uint8_t sec_hand = (((int32_t)(3*PMOD/4)*seconds) / 60);
+	uint8_t min_hand = (((int32_t)(3*PMOD/4)*minutes) / 60);
+	uint8_t hr_hand = (((int32_t)(3*PMOD/4)*(hours%12)) / 12);
 
 	return ( (hours < 12) ? pos < hr_hand : pos > hr_hand )
-	       ^ (abs(min_hand-pos) < 3)
-	       ^ (abs(sec_hand-pos) < 3)
+	       ^ (abs(min_hand-pos) < 4)
+	       ^ (abs(sec_hand-pos) < 4)
 	;
 }
 
