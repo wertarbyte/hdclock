@@ -15,10 +15,12 @@
 
 #define PCF8583_WRITE_ADDRESS ( 0xA0 & ~(0x01) )
 #define PCF8583_READ_ADDRESS  ( PCF8583_WRITE_ADDRESS | 0x01 )
-/* used to fetch clock data from PCF8583 IC:
- * [ 10 seconds | 1 seconds ] 0x2
- * [ 10 minutes | 1 minutes ] 0x3
- * [ 10 hours   | 1 hours   ] 0x4
+/* used to fetch clock data from I2C
+ * PCF8583 memory layout:
+ * [ 1/10 seoncds | 1/100 seconds ] 0x1
+ * [   10 seconds |     1 seconds ] 0x2
+ * [   10 minutes |     1 minutes ] 0x3
+ * [   10 hours   |     1 hours   ] 0x4
  */
 static uint8_t buffer_i2c[5] = {0};
 
