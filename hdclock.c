@@ -1,7 +1,11 @@
+#include <stdlib.h>
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+
+
+#define PRECALC 1
 
 #define TWI_FAST_MODE 1
 
@@ -24,8 +28,20 @@
  */
 static uint8_t buffer_i2c[5] = {0};
 
-/* unix style timestamp of the current hour, minute and second */
-static int32_t epoch = 0;
+static struct {
+	uint8_t h;
+	uint8_t m;
+	uint8_t s;
+} clock = {0,0,0};
+
+/* get a unix style timestamp value from the clock */
+static int32_t get_timestamp(void) {
+	int32_t result = 0;
+	result += clock.s;
+	result += clock.m*60;
+	result += clock.h*60*60;
+	return result;
+}
 
 static void blink(uint8_t n) {
 	while (n--) {
@@ -36,19 +52,18 @@ static void blink(uint8_t n) {
 	}
 }
 
-static void get_time(void) {
+static void update_clock(void) {
 	buffer_i2c[0] = PCF8583_WRITE_ADDRESS;
 	buffer_i2c[1] = 0x02; // start of time data
 	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 2);
 	buffer_i2c[0] = PCF8583_READ_ADDRESS;
 	USI_TWI_Start_Transceiver_With_Data(buffer_i2c, 4);
-	/* calculate Unix style timestamp (but only time, not date) */
-	epoch = (int32_t)(buffer_i2c[1] & 0x0F) + (buffer_i2c[1] >> 4)*10 +
-	        (int32_t)((buffer_i2c[2] & 0x0F) + (buffer_i2c[2] >> 4)*10)*60 +
-	        (int32_t)(((buffer_i2c[3] & 0x0F) + (buffer_i2c[3] >> 4)*10))*60*60;
+	clock.s = (buffer_i2c[1] & 0x0F) + (buffer_i2c[1] >> 4)*10;
+	clock.m = ((buffer_i2c[2] & 0x0F) + (buffer_i2c[2] >> 4)*10);
+	clock.h = ((buffer_i2c[3] & 0x0F) + (buffer_i2c[3] >> 4)*10);
 }
 
-static void set_time(int32_t ts) {
+static void set_timestamp(int32_t ts) {
 	uint8_t seconds = (ts % 60);
 	uint8_t minutes = (ts % (60*60))/60;
 	uint8_t hours = (ts / (60*60));
@@ -61,7 +76,7 @@ static void set_time(int32_t ts) {
 }
 
 static void set_clock(int8_t h, int8_t m, int8_t s) {
-	set_time( (int32_t)h*60*60 + (int32_t)m*60 + s );
+	set_timestamp( (int32_t)h*60*60 + (int32_t)m*60 + s );
 }
 
 typedef uint8_t(*display_t)(uint8_t);
@@ -69,17 +84,22 @@ typedef uint8_t(*display_t)(uint8_t);
 static volatile uint8_t ANIMATION_PHASE = 0;
 
 static uint8_t display_clock(uint8_t pos) {
-	uint8_t seconds = (epoch % 60);
-	uint8_t minutes = (epoch % (60*60))/60;
-	uint8_t hours = (epoch/(60*60)) % 24;
-	/* scale everything to 192 units */
-	uint8_t sec_hand = (((int32_t)(3*PMOD/4)*seconds) / 60);
-	uint8_t min_hand = (((int32_t)(3*PMOD/4)*minutes) / 60);
-	uint8_t hr_hand = (((int32_t)(3*PMOD/4)*(hours%12)) / 12);
+	static int32_t ts = 0;
+	int32_t time = get_timestamp();
+	/* scale everything to the visible number of units */
+	static uint8_t s_hand = 0;
+	static uint8_t m_hand = 0;
+	static uint8_t h_hand = 0;
+	if (0 || ts != time) {
+		s_hand = (((int16_t)(3*PMOD/4)*clock.s) / 60);
+		m_hand = (((int16_t)(3*PMOD/4)*clock.m) / 60);
+		h_hand = (((int16_t)(3*PMOD/4)*(clock.h%12)) / 12);
+		ts = time;
+	}
 
-	return ( (hours < 12) ? pos < hr_hand : pos > hr_hand )
-	       ^ (abs(min_hand-pos) < 4)
-	       ^ (abs(sec_hand-pos) < 4)
+	return ( (clock.h < 12) ? pos < h_hand : pos > h_hand )
+	       ^ (abs(m_hand-pos) < 4)
+	       ^ (abs(s_hand-pos) < 4)
 	;
 }
 
@@ -137,9 +157,10 @@ static uint8_t display_every_other(uint8_t pos) {
 	return pos%2;
 }
 
-static uint8_t image[(PMOD+7)/8] = { 0xFF };
+static uint8_t image[(PMOD+7)/8] = { 0 };
 
 static uint8_t display_precalc(uint8_t pos) {
+	if (pos >= PMOD) return 0;
 	uint8_t f = image[pos/8];
 	return f & 1<<(pos%8);
 }
@@ -147,7 +168,7 @@ static uint8_t display_precalc(uint8_t pos) {
 static void precalc_image(display_t d) {
 	uint8_t i = 0;
 	for (i=0; i<PMOD; i++) {
-		if (1||d(i)) {
+		if (d(i)) {
 			image[i/8] |= 1<<(i%8);
 		} else {
 			image[i/8] &= ~(1<<(i%8));
@@ -177,7 +198,7 @@ static uint16_t resetCounter(void) {
 }
 
 /* memorize the duration of one rotation in clock ticks */
-#define N_DURATIONS 5
+#define N_DURATIONS 1
 static volatile uint16_t duration[N_DURATIONS] = {0};
 static volatile uint16_t avg_duration = 0;
 
@@ -240,11 +261,18 @@ int main(void) {
 			PORTB |= 1<<PB3;
 			if (!fetched_time) {
 				fetched_time = 1;
-				get_time();
+				update_clock();
+#if DO_PRECALC
+				precalc_image(&display[display_i]);
+#endif
 			}
 		} else {
 			fetched_time = 0;
+#if DO_PRECALC
+			if (display_precalc(pos)) {
+#else
 			if (display[display_i](pos)) {
+#endif
 				PORTB &= ~(1<<PB3);
 			} else {
 				PORTB |= 1<<PB3;
