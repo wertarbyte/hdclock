@@ -101,7 +101,6 @@ static uint8_t display_clock(uint8_t pos) {
 	static uint8_t cs = 0;
 	int32_t time = get_timestamp();
 	/* scale everything to the visible number of units */
-	static uint8_t hs_hand = 0;
 	static uint8_t cs_hand = 0;
 	static uint8_t s_hand = 0;
 	static uint8_t m_hand = 0;
