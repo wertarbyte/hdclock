@@ -4,6 +4,15 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
+#define DDR_SENSOR PORTD
+#define PIN_SENSOR PIND
+#define PORT_SENSOR PORTD
+#define NUM_SENSOR PD3
+
+#define DDR_LEDS DDRD
+#define PIN_LEDS PIND
+#define PORT_LEDS PORTD
+#define NUM_LEDS PD0
 
 #define DO_PRECALC 0
 
@@ -222,12 +231,13 @@ static uint16_t get_duration(void) {
 }
 
 int main(void) {
-	DDRB = (1<<PB3);
+	DDR_LEDS |= (1<<NUM_LEDS);
+
+	/* debugging LED */
+	DDRD |= (1<<PD5);
 
 	// turn on pull up
-	PORTB = (1<<PB4);
-
-	DDRD = (1<<PD5);
+	PORT_SENSOR |= (1<<NUM_SENSOR);
 
 	TCCR0A = (1<<WGM01);
 	TCCR0B = (1<<CS02 | 1<<CS00);
@@ -238,8 +248,8 @@ int main(void) {
 
 	TIMSK = (1<<OCIE0A);
 
-	GIMSK = (1<<PCIE);
-	PCMSK = (1<<PCINT4);
+	GIMSK = (1<<INT1);
+	MCUCR |= (1<<ISC11);
 
 	USI_TWI_Master_Initialise();
 
@@ -253,9 +263,9 @@ int main(void) {
 	static uint8_t fetched_time = 0;
 
 	// test LEDs
-	PORTB &= ~(1<<PB3);
+	PORT_LEDS &= ~(1<<NUM_LEDS);
 	_delay_ms(500);
-	PORTB |= (1<<PB3);
+	PORT_LEDS |= (1<<NUM_LEDS);
 
 	sei();
 
@@ -268,7 +278,7 @@ int main(void) {
 		pos = PMOD-( ((((((uint32_t)getCounter())<<16) / duration)*PMAX)>>16)+P_OFFSET ) % (PMOD);
 		// are we inside the covered section?
 		if (pos >= P_VISIBLE) {
-			PORTB |= 1<<PB3;
+			PORT_LEDS |= 1<<NUM_LEDS;
 			if (!fetched_time) {
 				fetched_time = 1;
 				update_clock();
@@ -283,9 +293,9 @@ int main(void) {
 #else
 			if (display[display_i](pos)) {
 #endif
-				PORTB &= ~(1<<PB3);
+				PORT_LEDS &= ~(1<<NUM_LEDS);
 			} else {
-				PORTB |= 1<<PB3;
+				PORT_LEDS |= 1<<NUM_LEDS;
 			}
 		}
 	}
@@ -299,13 +309,10 @@ ISR(TIMER0_COMPA_vect) {
 	}
 }
 
-ISR(PCINT_vect) {
+ISR(INT1_vect) {
 	static uint8_t d_i = 0;
-	/* check for rising edge and debounce */
-	if (PINB & 1<<PB4) {
-		duration[d_i] = resetCounter();
-		d_i++;
-		d_i %= N_DURATIONS;
-		avg_duration = get_duration();
-	}
+	duration[d_i] = resetCounter();
+	d_i++;
+	d_i %= N_DURATIONS;
+	avg_duration = get_duration();
 }
