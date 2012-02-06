@@ -14,6 +14,16 @@
 #define PORT_LEDS PORTD
 #define NUM_LEDS PD0
 
+#define DDR_BTNDOWN DDRB
+#define PIN_BTNDOWN PINB
+#define PORT_BTNDOWN PORTB
+#define NUM_BTNDOWN PB1
+
+#define DDR_BTNUP DDRB
+#define PIN_BTNUP PINB
+#define PORT_BTNUP PORTB
+#define NUM_BTNUP PB0
+
 #define DO_PRECALC 0
 
 #define TWI_FAST_MODE 1
@@ -238,6 +248,9 @@ int main(void) {
 	// turn on pull up
 	PORT_SENSOR |= (1<<NUM_SENSOR);
 
+	PORT_BTNUP |= (1<<NUM_BTNUP);
+	PORT_BTNDOWN |= (1<<NUM_BTNDOWN);
+
 	TCCR0A = (1<<WGM01);
 	TCCR0B = (1<<CS02 | 1<<CS00);
 	OCR0A = 255;
@@ -268,10 +281,28 @@ int main(void) {
 
 	sei();
 
+	uint8_t btn_up = 0;
+	uint8_t btn_down = 0;
+
 	int16_t duration = 0;
 	while (1) {
 		duration = avg_duration;
 		if (!duration) continue;
+
+		if (( ~PIN_BTNUP & (1<<NUM_BTNUP)) && !btn_up) {
+			btn_up = 1; /* yes, we know! */
+			set_clock( (clock.h + 1)%24, clock.m, clock.s );
+			_delay_ms(10);
+		} else {
+			btn_up = ( ~PIN_BTNUP & (1<<NUM_BTNUP) );
+		}
+		if ((~PIN_BTNDOWN & (1<<NUM_BTNDOWN)) && !btn_down) {
+			btn_down = 1; /* yes, we know! */
+			set_clock( clock.h, (clock.m+1)%60, clock.s );
+			_delay_ms(10);
+		} else {
+			btn_down = (~PIN_BTNDOWN & (1<<NUM_BTNDOWN));
+		}
 
 		// where are we exactly?
 		pos = PMOD-( ((((((uint32_t)getCounter())<<16) / duration)*PMAX)>>16)+P_OFFSET ) % (PMOD);
