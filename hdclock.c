@@ -14,15 +14,20 @@
 #define PORT_LEDS PORTD
 #define NUM_LEDS PD0
 
-#define DDR_BTNDOWN DDRB
-#define PIN_BTNDOWN PINB
-#define PORT_BTNDOWN PORTB
-#define NUM_BTNDOWN PB1
+#define DDR_BTNA DDRB
+#define PIN_BTNA PINB
+#define PORT_BTNA PORTB
+#define NUM_BTNA PB0
 
-#define DDR_BTNUP DDRB
-#define PIN_BTNUP PINB
-#define PORT_BTNUP PORTB
-#define NUM_BTNUP PB0
+#define DDR_BTNB DDRB
+#define PIN_BTNB PINB
+#define PORT_BTNB PORTB
+#define NUM_BTNB PB1
+
+#define DDR_BTNC DDRB
+#define PIN_BTNC PINB
+#define PORT_BTNC PORTB
+#define NUM_BTNC PB2
 
 #define DO_PRECALC 0
 
@@ -204,15 +209,12 @@ static void precalc_image(display_t d) {
 	}
 }
 
-#define N_DISPLAYS 7
+#define N_DISPLAYS 4
 static display_t display[N_DISPLAYS] = {
+	&display_clock,
 	&display_progress,
 	&display_radar,
 	&display_magic_eye,
-	&display_half,
-	&display_clock,
-	&display_precalc,
-	&display_every_other,
 };
 
 static uint16_t getCounter(void) {
@@ -248,8 +250,9 @@ int main(void) {
 	// turn on pull up
 	PORT_SENSOR |= (1<<NUM_SENSOR);
 
-	PORT_BTNUP |= (1<<NUM_BTNUP);
-	PORT_BTNDOWN |= (1<<NUM_BTNDOWN);
+	PORT_BTNA |= (1<<NUM_BTNA);
+	PORT_BTNB |= (1<<NUM_BTNB);
+	PORT_BTNC |= (1<<NUM_BTNC);
 
 	TCCR0A = (1<<WGM01);
 	TCCR0B = (1<<CS02 | 1<<CS00);
@@ -268,7 +271,7 @@ int main(void) {
 	uint8_t pos = 0;
 
 	/* which animation will be shown? */
-	uint8_t display_i = 4;
+	uint8_t display_i = 0;
 	/* we fetch time data from the RTC chip
 	 * whenever we enter the covered area
 	 */
@@ -281,27 +284,39 @@ int main(void) {
 
 	sei();
 
-	uint8_t btn_up = 0;
-	uint8_t btn_down = 0;
+	uint8_t btn_a = 0;
+	uint8_t btn_b = 0;
+	uint8_t btn_c = 0;
 
 	int16_t duration = 0;
 	while (1) {
 		duration = avg_duration;
 		if (!duration) continue;
 
-		if (( ~PIN_BTNUP & (1<<NUM_BTNUP)) && !btn_up) {
-			btn_up = 1; /* yes, we know! */
+		if (( ~PIN_BTNA & (1<<NUM_BTNA)) && !btn_a) {
+			PORT_LEDS |= 1<<NUM_LEDS;
+			btn_a = 1; /* yes, we know! */
 			set_clock( (clock.h + 1)%24, clock.m, clock.s );
 			_delay_ms(10);
 		} else {
-			btn_up = ( ~PIN_BTNUP & (1<<NUM_BTNUP) );
+			btn_a = ( ~PIN_BTNA & (1<<NUM_BTNA) );
 		}
-		if ((~PIN_BTNDOWN & (1<<NUM_BTNDOWN)) && !btn_down) {
-			btn_down = 1; /* yes, we know! */
+		if ((~PIN_BTNB & (1<<NUM_BTNB)) && !btn_b) {
+			PORT_LEDS |= 1<<NUM_LEDS;
+			btn_b = 1; /* yes, we know! */
 			set_clock( clock.h, (clock.m+1)%60, clock.s );
 			_delay_ms(10);
 		} else {
-			btn_down = (~PIN_BTNDOWN & (1<<NUM_BTNDOWN));
+			btn_b = (~PIN_BTNB & (1<<NUM_BTNB));
+		}
+		if ((~PIN_BTNC & (1<<NUM_BTNC)) && !btn_c) {
+			PORT_LEDS |= 1<<NUM_LEDS;
+			btn_c = 1; /* yes, we know! */
+			display_i++;
+			display_i %= N_DISPLAYS;
+			_delay_ms(10);
+		} else {
+			btn_c = (~PIN_BTNC & (1<<NUM_BTNC));
 		}
 
 		// where are we exactly?
