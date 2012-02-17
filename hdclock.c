@@ -38,6 +38,8 @@
 #define PMAX UINT8_MAX
 #define PMOD (PMAX+1)
 
+#define P_ADJUST 9
+
 #define P_VISIBLE ((PMOD*3)/4)
 
 #define P_OFFSET (1*(PMAX+1)/8)
@@ -320,7 +322,7 @@ int main(void) {
 		}
 
 		// where are we exactly?
-		pos = PMOD-( ((((((uint32_t)getCounter())<<16) / duration)*PMAX)>>16)+P_OFFSET ) % (PMOD);
+		pos = PMOD-( ((((((uint32_t)getCounter())<<16) / duration)*PMAX)>>16)+P_OFFSET+P_ADJUST ) % (PMOD);
 		// are we inside the covered section?
 		if (pos >= P_VISIBLE) {
 			PORT_LEDS |= 1<<NUM_LEDS;
